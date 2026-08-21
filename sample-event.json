@@ -1,0 +1,25 @@
+{
+  "version": "0",
+  "id": "test-event-001",
+  "detail-type": "GuardDuty Finding",
+  "source": "aws.guardduty",
+  "account": "123456789012",
+  "time": "2026-08-21T12:00:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "id": "test-finding-001",
+    "accountId": "123456789012",
+    "type": "Recon:EC2/PortProbeUnprotectedPort",
+    "title": "Unprotected port probing detected",
+    "description": "EC2 instance is performing port probes against external hosts. This behavior indicates potential reconnaissance activity.",
+    "severity": 5.0,
+    "region": "us-east-1",
+    "service": {
+      "serviceName": "GuardDuty",
+      "additionalInfo": {
+        "sample": true
+      }
+    }
+  }
+}

@@ -1,0 +1,424 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  The Sentinel's Chronicle
+  Event-driven creative security agent powered by GuardDuty and Bedrock.
+  Transforms security findings into evolving narrative chronicles.
+
+Parameters:
+  BedrockModelId:
+    Type: String
+    Default: amazon.nova-lite-v1:0
+    Description: Bedrock model ID for chronicle generation
+  
+  Environment:
+    Type: String
+    Default: prod
+    Description: Environment name (prod, dev, staging)
+    AllowedValues:
+      - prod
+      - dev
+      - staging
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 512
+    Tracing: Active
+    Runtime: python3.12
+    LoggingConfig:
+      LogFormat: JSON
+      ApplicationLogLevel: INFO
+      SystemLogLevel: WARN
+    Environment:
+      Variables:
+        POWERTOOLS_SERVICE_NAME: !Ref AWS::StackName
+        POWERTOOLS_METRICS_NAMESPACE: !Ref AWS::StackName
+        LOG_LEVEL: INFO
+    
+  Api:
+    TracingEnabled: true
+    Cors:
+      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,Origin,Accept'"
+      AllowOrigin: "'*'"
+      AllowCredentials: false
+      MaxAge: "'3600'"
+
+Resources:
+  # ============================================
+  # API Gateway
+  # ============================================
+  ChronicleApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-api
+      StageName: !Ref Environment
+      TracingEnabled: true
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,Origin,Accept'"
+        AllowOrigin: "'*'"
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          title: !Ref AWS::StackName
+          version: "1.0"
+          description: "The Sentinel's Chronicle API - Security events as stories"
+        schemes:
+          - "https"
+        consumes:
+          - "application/json"
+        produces:
+          - "application/json"
+        paths:
+          /chronicles:
+            get:
+              summary: Get all chronicles
+              description: Retrieve all security chronicles from DynamoDB
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SentinelFunction.Arn}/invocations
+              responses:
+                '200':
+                  description: Successful response
+                  schema:
+                    type: object
+                    properties:
+                      chronicles:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            finding_id:
+                              type: string
+                            created_at:
+                              type: string
+                            severity:
+                              type: number
+                            title:
+                              type: string
+                            chronicle:
+                              type: string
+                            region:
+                              type: string
+                      count:
+                        type: integer
+                      style_memory:
+                        type: string
+          /health:
+            get:
+              summary: Health check
+              description: Check API and service health
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SentinelFunction.Arn}/invocations
+              responses:
+                '200':
+                  description: Service is healthy
+          /chronicles/{finding_id}:
+            get:
+              summary: Get specific chronicle
+              description: Retrieve a specific chronicle by finding ID
+              parameters:
+                - name: finding_id
+                  in: path
+                  required: true
+                  type: string
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SentinelFunction.Arn}/invocations
+              responses:
+                '200':
+                  description: Chronicle found
+                '404':
+                  description: Chronicle not found
+
+  # ============================================
+  # DynamoDB Tables
+  # ============================================
+  ChronicleTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: !Sub ${AWS::StackName}-chronicle-${Environment}
+      PrimaryKey:
+        Name: finding_id
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: SentinelChronicle
+
+  StyleMemoryTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: !Sub ${AWS::StackName}-style-memory-${Environment}
+      PrimaryKey:
+        Name: memory_id
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: SentinelChronicle
+
+  # ============================================
+  # Main Lambda Function
+  # ============================================
+  SentinelFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python3.12
+      BuildProperties:
+        Source: src/
+        Dependencies: requirements.txt
+    Properties:
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.12
+      Timeout: 60
+      MemorySize: 512
+      Tracing: Active
+      Environment:
+        Variables:
+          CHRONICLE_TABLE: !Ref ChronicleTable
+          STYLE_MEMORY_TABLE: !Ref StyleMemoryTable
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          ENVIRONMENT: !Ref Environment
+          LOG_LEVEL: INFO
+      Policies:
+        # DynamoDB permissions
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ChronicleTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StyleMemoryTable
+        # Bedrock permissions
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:Converse
+              Resource: "*"
+        # CloudWatch logs
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+                - logs:DescribeLogStreams
+              Resource: "*"
+        # X-Ray tracing
+        - AWSXRayDaemonWriteAccess: {}
+      Events:
+        # EventBridge trigger for GuardDuty
+        GuardDutyFinding:
+          Type: EventBridgeRule
+          Properties:
+            Description: "Triggers on GuardDuty findings"
+            Pattern:
+              source:
+                - aws.guardduty
+              detail-type:
+                - GuardDuty Finding
+            State: ENABLED
+        
+        # API Gateway triggers
+        ApiChronicles:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChronicleApi
+            Path: /chronicles
+            Method: GET
+        
+        ApiChroniclesById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChronicleApi
+            Path: /chronicles/{finding_id}
+            Method: GET
+        
+        ApiHealth:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChronicleApi
+            Path: /health
+            Method: GET
+      
+      Tags:
+        Environment: !Ref Environment
+        Service: SentinelChronicle
+        Project: sentinels-chronicle
+
+  # ============================================
+  # EventBridge Rule (Standalone - Keep as backup)
+  # ============================================
+  GuardDutyEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "The Sentinel's Chronicle - GuardDuty Event Rule"
+      EventPattern:
+        source:
+          - aws.guardduty
+        detail-type:
+          - GuardDuty Finding
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt SentinelFunction.Arn
+          Id: SentinelFunctionTarget
+    DependsOn:
+      - SentinelFunction
+
+  # ============================================
+  # Monitoring & Observability
+  # ============================================
+  ApplicationResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name: !Sub ApplicationInsights-SAM-${AWS::StackName}
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+
+  ApplicationInsightsMonitoring:
+    Type: AWS::ApplicationInsights::Application
+    Properties:
+      ResourceGroupName: !Ref ApplicationResourceGroup
+      AutoConfigurationEnabled: true
+      Configuration:
+        ComponentConfigurationSettings:
+          - ComponentName: "Lambda"
+            Tier: "AWS::Lambda"
+            MonitoringConfiguration:
+              AlarmMetrics:
+                - AlarmMetricName: "Errors"
+              ConfiguredLogs:
+                - LogType: "Lambda"
+          - ComponentName: "DynamoDB"
+            Tier: "AWS::DynamoDB"
+          - ComponentName: "API Gateway"
+            Tier: "AWS::ApiGateway"
+
+  # ============================================
+  # CloudWatch Alarms
+  # ============================================
+  LambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-Lambda-Errors
+      AlarmDescription: "Lambda function has errors"
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref SentinelFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: []
+
+  LambdaDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-Lambda-Duration
+      AlarmDescription: "Lambda function duration is too high"
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref SentinelFunction
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 50000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: []
+
+  # ============================================
+  # S3 Bucket for Frontend (Optional)
+  # ============================================
+  # Uncomment to create S3 bucket for hosting
+  # FrontendBucket:
+  #   Type: AWS::S3::Bucket
+  #   Properties:
+  #     BucketName: !Sub sentinels-chronicle-${AWS::AccountId}
+  #     WebsiteConfiguration:
+  #       IndexDocument: index.html
+  #       ErrorDocument: index.html
+  #     PublicAccessBlockConfiguration:
+  #       BlockPublicAcls: false
+  #       IgnorePublicAcls: false
+  #       BlockPublicPolicy: false
+  #       RestrictPublicBuckets: false
+  #   DeletionPolicy: Retain
+  #
+  # FrontendBucketPolicy:
+  #   Type: AWS::S3::BucketPolicy
+  #   Properties:
+  #     Bucket: !Ref FrontendBucket
+  #     PolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Sid: PublicReadGetObject
+  #           Effect: Allow
+  #           Principal: '*'
+  #           Action: s3:GetObject
+  #           Resource: !Sub ${FrontendBucket.Arn}/*
+
+# ============================================
+# Outputs
+# ============================================
+Outputs:
+  # API Endpoints
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${ChronicleApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/
+  
+  ChroniclesUrl:
+    Description: URL to get all chronicles
+    Value: !Sub https://${ChronicleApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/chronicles
+  
+  HealthUrl:
+    Description: Health check endpoint
+    Value: !Sub https://${ChronicleApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/health
+
+  # Lambda Function
+  SentinelFunction:
+    Description: Sentinel Lambda function ARN
+    Value: !GetAtt SentinelFunction.Arn
+  
+  SentinelFunctionName:
+    Description: Sentinel Lambda function name
+    Value: !Ref SentinelFunction
+
+  # DynamoDB Tables
+  ChronicleTable:
+    Description: Chronicle DynamoDB table name
+    Value: !Ref ChronicleTable
+  
+  StyleMemoryTable:
+    Description: Style memory DynamoDB table name
+    Value: !Ref StyleMemoryTable
+
+  # Stack Info
+  StackName:
+    Description: CloudFormation stack name
+    Value: !Ref AWS::StackName
+  
+  Environment:
+    Description: Deployment environment
+    Value: !Ref Environment

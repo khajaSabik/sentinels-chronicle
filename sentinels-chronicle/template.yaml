@@ -1,0 +1,187 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  The Sentinel's Chronicle
+  Event-driven creative security agent powered by GuardDuty and Bedrock.
+
+Parameters:
+  BedrockModelId:
+    Type: String
+    Default: amazon.nova-lite-v1:0
+    Description: Bedrock model ID for chronicle generation
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 512
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
+  Api:
+    TracingEnabled: true
+    Cors:
+      AllowMethods: "'GET,OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      AllowOrigin: "'*'"
+
+Resources:
+  # API Gateway for frontend
+  ChronicleApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'GET,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          title: !Ref AWS::StackName
+          version: "1.0"
+        paths:
+          /chronicles:
+            get:
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SentinelFunction.Arn}/invocations
+              responses: {}
+          /health:
+            get:
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SentinelFunction.Arn}/invocations
+              responses: {}
+
+  # DynamoDB Tables
+  ChronicleTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: !Sub ${AWS::StackName}-chronicle
+      PrimaryKey:
+        Name: finding_id
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  StyleMemoryTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: !Sub ${AWS::StackName}-style-memory
+      PrimaryKey:
+        Name: memory_id
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  # Main Lambda Function
+  SentinelFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.12
+      Timeout: 60
+      MemorySize: 512
+      Tracing: Active
+      Environment:
+        Variables:
+          CHRONICLE_TABLE: !Ref ChronicleTable
+          STYLE_MEMORY_TABLE: !Ref StyleMemoryTable
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ChronicleTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StyleMemoryTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:Converse
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: "*"
+      Events:
+        # EventBridge trigger for GuardDuty
+        GuardDutyFinding:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.guardduty
+              detail-type:
+                - GuardDuty Finding
+        # API Gateway triggers
+        ApiChronicles:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChronicleApi
+            Path: /chronicles
+            Method: GET
+        ApiHealth:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChronicleApi
+            Path: /health
+            Method: GET
+
+  # Application Insights for monitoring
+  ApplicationResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name: !Sub ApplicationInsights-SAM-${AWS::StackName}
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+
+  ApplicationInsightsMonitoring:
+    Type: AWS::ApplicationInsights::Application
+    Properties:
+      ResourceGroupName: !Ref ApplicationResourceGroup
+      AutoConfigurationEnabled: true
+
+Outputs:
+  # API Endpoints
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${ChronicleApi}.execute-api.${AWS::Region}.amazonaws.com/prod/
+  
+  ChroniclesUrl:
+    Description: URL to get all chronicles
+    Value: !Sub https://${ChronicleApi}.execute-api.${AWS::Region}.amazonaws.com/prod/chronicles
+  
+  HealthUrl:
+    Description: Health check endpoint
+    Value: !Sub https://${ChronicleApi}.execute-api.${AWS::Region}.amazonaws.com/prod/health
+
+  # Lambda Function
+  SentinelFunction:
+    Description: Sentinel Lambda function ARN
+    Value: !GetAtt SentinelFunction.Arn
+  
+  SentinelFunctionName:
+    Description: Sentinel Lambda function name
+    Value: !Ref SentinelFunction
+
+  # DynamoDB Tables
+  ChronicleTable:
+    Description: Chronicle DynamoDB table name
+    Value: !Ref ChronicleTable
+  
+  StyleMemoryTable:
+    Description: Style memory DynamoDB table name
+    Value: !Ref StyleMemoryTable
+
+  # Stack Info
+  StackName:
+    Description: CloudFormation stack name
+    Value: !Ref AWS::StackName

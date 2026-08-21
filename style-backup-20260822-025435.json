@@ -1,0 +1,13 @@
+{
+    "Item": {
+        "updated_at": {
+            "S": "2026-08-21T20:25:04.749830+00:00"
+        },
+        "style_notes": {
+            "S": "rrent lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more restrained and precise for repeated low-severity findings. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more restrained and precise for repeated low-severity findings. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more restrained and precise for repeated low-severity findings. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama.; current lesson: more restrained and precise for repeated low-severity findings. Avoid repetition and melodrama.; current lesson: more tense and concise when the threat is significant. Avoid repetition and melodrama."
+        },
+        "memory_id": {
+            "S": "global"
+        }
+    }
+}

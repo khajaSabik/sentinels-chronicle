@@ -1,0 +1,18 @@
+{
+  "version": "0",
+  "id": "example-event-id",
+  "detail-type": "GuardDuty Finding",
+  "source": "aws.guardduty",
+  "account": "111122223333",
+  "time": "2026-08-21T12:00:00Z",
+  "region": "ap-southeast-1",
+  "resources": [],
+  "detail": {
+    "id": "example-finding-id",
+    "accountId": "111122223333",
+    "type": "Recon:EC2/PortProbeUnprotectedPort",
+    "title": "Unprotected port probing detected",
+    "description": "Sample GuardDuty finding for testing the Sentinel.",
+    "severity": 5
+  }
+}
