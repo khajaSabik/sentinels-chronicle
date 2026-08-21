@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-> **NOTE:** Replace every `YOUR_USERNAME` placeholder in this file with your real GitHub username before publishing.
+> **NOTE:** Replace every `khajaSabik` placeholder in this file with your real GitHub username before publishing.
 
 ---
 
@@ -72,7 +72,7 @@ Nova Lite → DynamoDB → API Gateway → CloudFront → S3 (private, OAI-only)
 
 | Resource | URL |
 |:---|:---|
-| 🌐 **Website** | https://sentinels-chronicle-688567278489.s3-website-us-east-1.amazonaws.com |
+| 🌐 **Website** | https://d3cogtdunqhzuj.cloudfront.net/
 | 🔗 **API base** | https://0a3ybz50wj.execute-api.us-east-1.amazonaws.com/prod/ |
 | 📊 **Health check** | https://0a3ybz50wj.execute-api.us-east-1.amazonaws.com/prod/health |
 | 📝 **Chronicles feed** | https://0a3ybz50wj.execute-api.us-east-1.amazonaws.com/prod/chronicles |
@@ -340,12 +340,12 @@ Distributed under the MIT License. See `LICENSE` for details.
 
 ## 📞 Contact & support
 
-- **GitHub Issues:** github.com/YOUR_USERNAME/sentinels-chronicle/issues
-- **Live demo:** sentinels-chronicle-688567278489.s3-website-us-east-1.amazonaws.com
+- **GitHub Issues:** github.com/khajaSabik/sentinels-chronicle/issues
+- **Live demo:** https://d3cogtdunqhzuj.cloudfront.net/
 
 ---
 
 *The Sentinel watches. The Chronicle endures.* 🗡️
 
-![GitHub stars](https://img.shields.io/github/stars/YOUR_USERNAME/sentinels-chronicle?style=social)
-![GitHub forks](https://img.shields.io/github/forks/YOUR_USERNAME/sentinels-chronicle?style=social)
+![GitHub stars](https://img.shields.io/github/stars/khajaSabik/sentinels-chronicle?style=social)
+![GitHub forks](https://img.shields.io/github/forks/khajaSabik/sentinels-chronicle?style=social)
